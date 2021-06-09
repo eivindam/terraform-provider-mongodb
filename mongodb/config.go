@@ -22,6 +22,7 @@ type ClientConfig struct {
 	InsecureSkipVerify bool
 	ReplicaSet string
 	Certificate	    string
+
 }
 type DbUser struct {
 	Name     string `json:"name"`
@@ -58,9 +59,6 @@ func (c *ClientConfig) MongoClient() (*mongo.Client, error) {
 
 
 	var arguments = ""
-	if c.RetryWrites != -1 {
-		arguments = addArgs(arguments,"retrywrites="+strconv.FormatBool(c.RetryWrites == 1))
-	}
 	if c.Ssl {
 		arguments = addArgs(arguments,"ssl=true")
 	}
@@ -130,9 +128,6 @@ func buildHttpClientFromCertPath(ca , cert , key []byte, config *ClientConfig) (
 		tlsConfig.RootCAs = caPool
 	}
 	var arguments = ""
-	if config.RetryWrites != -1 {
-		arguments = addArgs(arguments,"retrywrites="+strconv.FormatBool(config.RetryWrites == 1))
-	}
 	if config.Ssl {
 		arguments = addArgs(arguments,"ssl=true")
 	}
@@ -171,9 +166,6 @@ func buildHTTPClientFromBytes(caPEMCert, certPEMBlock, keyPEMBlock []byte, confi
 		tlsConfig.InsecureSkipVerify = true
 	}
 	var arguments = ""
-	if config.RetryWrites != -1 {
-		arguments = addArgs(arguments,"retrywrites="+strconv.FormatBool(config.RetryWrites == 1))
-	}
 	if config.Ssl {
 		arguments = addArgs(arguments,"ssl=true")
 	}
