@@ -91,6 +91,7 @@ func providerConfigure(ctx context.Context, d *schema.ResourceData) (interface{}
 		ReplicaSet:      d.Get("replica_set").(string),
 		Certificate:       d.Get("certificate").(string),
 		InsecureSkipVerify: d.Get("insecure_skip_verify").(bool),
+		RetryWrites: d.Get("retrywrites").(bool),
 	}
 
 	client, err := clientConfig.MongoClient()
