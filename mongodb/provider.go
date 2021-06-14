@@ -118,21 +118,7 @@ func providerConfigure(ctx context.Context, d *schema.ResourceData) (interface{}
 		Key:      d.Get("key_material").(string),
 		CertPath: d.Get("cert_path").(string),
 		InsecureSkipVerify: d.Get("insecure_skip_verify").(bool),
-		RetryWrites: -1,
-	}
-
-	// To allow input as an optional bool RetryWrites is a tri-state int (-1, 0, 1) where -1 is not set.
-	// RetryWrites should be default enabled, but sometimes you need to disable it
-	retryWrites, retryWritesExists := d.GetOkExists("retrywrites")
-
-	if (retryWritesExists) {
-		retryWritesEnabled := 0
-
-		if (retryWrites == true) {
-			retryWritesEnabled = 1
-		}
-
-		clientConfig.RetryWrites = retryWritesEnabled
+		RetryWrites: d.Get("retrywrites").(bool),
 	}
 
 	client, err := clientConfig.MongoClient()

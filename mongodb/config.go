@@ -27,7 +27,7 @@ type ClientConfig struct {
 	Cert     string
 	Key      string
 	CertPath string
-	RetryWrites int
+	RetryWrites bool
 }
 type DbUser struct {
 	Name     string `json:"name"`
@@ -89,9 +89,9 @@ func (c *ClientConfig) MongoClient() (*mongo.Client, error) {
 		return mongoClient,err
 	}
 	var arguments = ""
-	if c.RetryWrites != -1 {
-		arguments = addArgs(arguments,"retrywrites="+strconv.FormatBool(c.RetryWrites == 1))
-	}
+
+	arguments = addArgs(arguments,"retrywrites="+strconv.FormatBool(c.RetryWrites))
+
 	if c.Ssl {
 		arguments = addArgs(arguments,"ssl=true")
 	}
@@ -127,9 +127,9 @@ func buildHttpClientFromCertPath(ca , cert , key []byte, config *ClientConfig) (
 		tlsConfig.RootCAs = caPool
 	}
 	var arguments = ""
-	if config.RetryWrites != -1 {
-		arguments = addArgs(arguments,"retrywrites="+strconv.FormatBool(config.RetryWrites == 1))
-	}
+
+	arguments = addArgs(arguments,"retrywrites="+strconv.FormatBool(config.RetryWrites))
+
 	if config.Ssl {
 		arguments = addArgs(arguments,"ssl=true")
 	}
@@ -168,9 +168,9 @@ func buildHTTPClientFromBytes(caPEMCert, certPEMBlock, keyPEMBlock []byte, confi
 		tlsConfig.InsecureSkipVerify = true
 	}
 	var arguments = ""
-	if config.RetryWrites != -1 {
-		arguments = addArgs(arguments,"retrywrites="+strconv.FormatBool(config.RetryWrites == 1))
-	}
+
+	arguments = addArgs(arguments,"retrywrites="+strconv.FormatBool(config.RetryWrites))
+
 	if config.Ssl {
 		arguments = addArgs(arguments,"ssl=true")
 	}
