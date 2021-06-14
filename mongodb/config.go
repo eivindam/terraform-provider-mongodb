@@ -9,8 +9,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"path/filepath"
-	"strconv"
 )
 
 
@@ -23,11 +21,8 @@ type ClientConfig struct {
 	Ssl      bool
 	InsecureSkipVerify bool
 	ReplicaSet string
-	Ca       string
-	Cert     string
-	Key      string
-	CertPath string
 	RetryWrites bool
+	Certificate	    string
 }
 type DbUser struct {
 	Name     string `json:"name"`
@@ -51,6 +46,34 @@ type Privilege struct {
 	Resource Resource `json:"resource"`
 	Actions  []string `json:"actions"`
 }
+type SingleResultGetUser struct {
+	Users []struct {
+		Id     string `json:"_id"`
+		User  string `json:"user"`
+		Db    string `json:"db"`
+		Roles []struct {
+			Role string `json:"role"`
+			Db   string `json:"db"`
+		} `json:"roles"`
+	} `json:"users"`
+}
+type SingleResultGetRole struct {
+	Roles []struct {
+		Role      string `json:"role"`
+		Db        string `json:"db"`
+		InheritedRoles []struct {
+			Role string `json:"role"`
+			Db   string `json:"db"`
+		} `json:"inheritedRoles"`
+		Privileges []struct {
+			Resource struct {
+				Db         string `json:"db"`
+				Collection string `json:"collection"`
+			} `json:"resource"`
+			Actions []string `json:"actions"`
+		} `json:"privileges"`
+	} `json:"roles"`
+}
 func addArgs(arguments string,newArg string) string {
 	if arguments != "" {
 		return arguments+"&"+newArg
@@ -62,32 +85,7 @@ func addArgs(arguments string,newArg string) string {
 
 func (c *ClientConfig) MongoClient() (*mongo.Client, error) {
 
-	if c.Cert != "" || c.Key != "" {
-		if c.Cert == "" || c.Key == "" {
-			return nil, fmt.Errorf("cert_material, and key_material must be specified")
-		}
 
-		if c.CertPath != "" {
-			return nil, fmt.Errorf("cert_path must not be specified")
-		}
-
-		mongoClient, err := buildHTTPClientFromBytes([]byte(c.Ca), []byte(c.Cert), []byte(c.Key), c)
-		if err != nil {
-			return nil, err
-		}
-		return mongoClient,err
-	}
-	if c.CertPath != "" {
-		// If there is cert information, load it and use it.
-		ca := filepath.Join(c.CertPath, "ca.pem")
-		cert := filepath.Join(c.CertPath, "cert.pem")
-		key := filepath.Join(c.CertPath, "key.pem")
-		mongoClient , err := buildHttpClientFromCertPath([]byte(ca), []byte(cert) , []byte(key) , c)
-		if err != nil {
-			return nil, err
-		}
-		return mongoClient,err
-	}
 	var arguments = ""
 
 	arguments = addArgs(arguments,"retrywrites="+strconv.FormatBool(c.RetryWrites))
@@ -100,10 +98,44 @@ func (c *ClientConfig) MongoClient() (*mongo.Client, error) {
 	}
 	var uri = "mongodb://" + c.Host + ":" + c.Port + arguments
 
+	/*
+	@Since: v0.0.7
+	add certificate support for documentDB
+	 */
+	if c.Certificate != "" {
+		tlsConfig, err := getTLSConfigWithAllServerCertificates([]byte(c.Certificate))
+		if err != nil {
+			return nil, err
+		}
+
+		mongoClient, err := mongo.NewClient(options.Client().ApplyURI(uri).SetAuth(options.Credential{
+			AuthSource: c.DB, Username: c.Username, Password: c.Password,
+		}).SetTLSConfig(tlsConfig))
+
+		return mongoClient, err
+	}
+
 	client, err := mongo.NewClient(options.Client().ApplyURI(uri).SetAuth(options.Credential{
 		AuthSource: c.DB, Username: c.Username, Password: c.Password,
 	}))
 	return client, err
+}
+
+func getTLSConfigWithAllServerCertificates(ca []byte) (*tls.Config, error) {
+	/* As of version 1.2.1, the MongoDB Go Driver will only use the first CA server certificate found in sslcertificateauthorityfile.
+	   The code below addresses this limitation by manually appending all server certificates found in sslcertificateauthorityfile
+	   to a custom TLS configuration used during client creation. */
+
+	tlsConfig := new(tls.Config)
+
+	tlsConfig.RootCAs = x509.NewCertPool()
+	ok := tlsConfig.RootCAs.AppendCertsFromPEM(ca)
+
+	if !ok {
+		return tlsConfig, errors.New("Failed parsing pem file")
+	}
+
+	return tlsConfig, nil
 }
 
 func buildHttpClientFromCertPath(ca , cert , key []byte, config *ClientConfig) (*mongo.Client, error) {
@@ -214,6 +246,38 @@ func createUser(client *mongo.Client, user DbUser, roles []Role, database string
 		return result.Err()
 	}
 	return nil
+}
+
+func getUser(client *mongo.Client, username string, database string) (SingleResultGetUser , error) {
+	var result *mongo.SingleResult
+	result = client.Database(database).RunCommand(context.Background(), bson.D{{Key: "usersInfo", Value: bson.D{
+		{Key: "user", Value: username},
+		{Key: "db", Value: database},
+	},
+	}})
+	var decodedResult SingleResultGetUser
+	err := result.Decode(&decodedResult)
+	if err != nil {
+		return decodedResult , err
+	}
+	return decodedResult , nil
+}
+
+func getRole(client *mongo.Client, roleName string, database string) (SingleResultGetRole , error)  {
+	var result *mongo.SingleResult
+	result = client.Database(database).RunCommand(context.Background(), bson.D{{Key: "rolesInfo", Value: bson.D{
+		{Key: "role", Value: roleName},
+		{Key: "db", Value: database},
+	},
+	},
+	{ Key: "showPrivileges" , Value: true},
+	})
+	var decodedResult SingleResultGetRole
+	err := result.Decode(&decodedResult)
+	if err != nil {
+		return decodedResult , err
+	}
+	return decodedResult , nil
 }
 
 func createRole(client *mongo.Client, role string, roles []Role, privilege []PrivilegeDto, database string) error {
