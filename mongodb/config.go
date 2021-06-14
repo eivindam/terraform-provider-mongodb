@@ -9,6 +9,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"strconv"
 )
 
 
@@ -21,8 +22,8 @@ type ClientConfig struct {
 	Ssl      bool
 	InsecureSkipVerify bool
 	ReplicaSet string
-	Certificate	    string
 	RetryWrites bool
+	Certificate	    string
 }
 type DbUser struct {
 	Name     string `json:"name"`
